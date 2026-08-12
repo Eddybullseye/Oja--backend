@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   @default("buyer") // buyer, worker, admin
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyerProfile  BuyerProfile?
+  workerProfile WorkerProfile?
+  adminProfile  AdminProfile?
+
+  bookingsAsBuyer  Booking[] @relation("BuyerBookings")
+  bookingsAsWorker Booking[] @relation("WorkerBookings")
+
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+}
+
+model BuyerProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+model WorkerProfile {
+  id                 String  @id @default(uuid())
+  userId             String  @unique
+  user               User    @relation(fields: [userId], references: [id])
+  skills             String?
+  bio                String?
+  pricing            Float?
+  serviceRadius      Float?
+  verificationStatus String  @default("pending") // pending, approved, rejected
+}
+
+model AdminProfile {
+  id             String @id @default(uuid())
+  userId         String @unique
+  user           User   @relation(fields: [userId], references: [id])
+  permissionTier String @default("moderator") // super_admin, support_agent, finance, moderator
+}
+
+model ServiceCategory {
+  id             String    @id @default(uuid())
+  name           String
+  commissionRate Float     @default(0.10) // 10%
+  bookings       Booking[]
+}
+
+model Booking {
+  id            String   @id @default(uuid())
+  buyerId       String
+  workerId      String
+  serviceId     String
+  status        String   @default("pending") // pending, accepted, completed, disputed
+  scheduledDate DateTime
+  price         Float
+  escrowStatus  String   @default("held") // held, released, refunded
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  buyer        User            @relation("BuyerBookings", fields: [buyerId], references: [id])
+  worker       User            @relation("WorkerBookings", fields: [workerId], references: [id])
+  service      ServiceCategory @relation(fields: [serviceId], references: [id])
+  transactions Transaction[]
+  reviews      Review[]
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  senderId       String
+  receiverId     String
+  conversationId String
+  content        String
+  timestamp      DateTime @default(now())
+
+  sender   User @relation("SentMessages", fields: [senderId], references: [id])
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id])
+}
+
+model Transaction {
+  id           String   @id @default(uuid())
+  bookingId    String
+  amount       Float
+  commission   Float
+  payoutStatus String   @default("pending") // pending, paid, refunded
+  gatewayRef   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+}
+
+model Review {
+  id           String   @id @default(uuid())
+  bookingId    String
+  rating       Int
+  comment      String?
+  reviewerRole String // buyer, worker
+  createdAt    DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+}

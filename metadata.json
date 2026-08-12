@@ -1,0 +1,6 @@
+{
+  "name": "Oja Marketplace Backend",
+  "description": "NestJS backend API for Oja, a two-sided service marketplace.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
