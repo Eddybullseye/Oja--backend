@@ -11,12 +11,17 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  role      String   @default("buyer") // buyer, worker, admin
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String    @id @default(uuid())
+  email             String    @unique
+  password          String
+  role              String    @default("buyer") // buyer, worker, admin
+  twoFactorSecret   String?
+  twoFactorEnabled  Boolean   @default(false)
+  resetToken        String?
+  resetTokenExpires DateTime?
+  deletedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   buyerProfile  BuyerProfile?
   workerProfile WorkerProfile?
@@ -25,8 +30,16 @@ model User {
   bookingsAsBuyer  Booking[] @relation("BuyerBookings")
   bookingsAsWorker Booking[] @relation("WorkerBookings")
 
-  sentMessages     Message[] @relation("SentMessages")
-  receivedMessages Message[] @relation("ReceivedMessages")
+  sentMessages      Message[]                @relation("SentMessages")
+  receivedMessages  Message[]                @relation("ReceivedMessages")
+  refreshTokens     RefreshToken[]
+  notificationPrefs NotificationPreference[]
+  referralsMade     Referral[]               @relation("Referrer")
+  referralsReceived Referral[]               @relation("ReferredUser")
+  reportsMade       Report[]                 @relation("Reporter")
+  reportsReceived   Report[]                 @relation("ReportedUser")
+  blocksMade        Block[]                  @relation("Blocker")
+  blocksReceived    Block[]                  @relation("Blocked")
 }
 
 model BuyerProfile {
@@ -61,16 +74,17 @@ model ServiceCategory {
 }
 
 model Booking {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   buyerId       String
   workerId      String
   serviceId     String
-  status        String   @default("pending") // pending, accepted, completed, disputed
+  status        String    @default("pending") // pending, accepted, completed, disputed
   scheduledDate DateTime
   price         Float
-  escrowStatus  String   @default("held") // held, released, refunded
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  escrowStatus  String    @default("held") // held, released, refunded
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
   buyer        User            @relation("BuyerBookings", fields: [buyerId], references: [id])
   worker       User            @relation("WorkerBookings", fields: [workerId], references: [id])
@@ -105,12 +119,80 @@ model Transaction {
 }
 
 model Review {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   bookingId    String
   rating       Int
   comment      String?
   reviewerRole String // buyer, worker
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
 
   booking Booking @relation(fields: [bookingId], references: [id])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model NotificationPreference {
+  id        String  @id @default(uuid())
+  userId    String
+  channel   String // push, email, sms
+  eventType String // e.g., booking_created, message_received
+  enabled   Boolean @default(true)
+  user      User    @relation(fields: [userId], references: [id])
+
+  @@unique([userId, channel, eventType])
+}
+
+model Referral {
+  id             String   @id @default(uuid())
+  referrerId     String
+  code           String   @unique
+  referredUserId String?  @unique
+  status         String   @default("pending") // pending, completed
+  rewardStatus   String   @default("pending") // pending, paid
+  createdAt      DateTime @default(now())
+
+  referrer     User  @relation("Referrer", fields: [referrerId], references: [id])
+  referredUser User? @relation("ReferredUser", fields: [referredUserId], references: [id])
+}
+
+model Report {
+  id             String   @id @default(uuid())
+  reporterId     String
+  reportedUserId String
+  reason         String
+  context        String // profile, chat, review
+  status         String   @default("pending") // pending, reviewed, dismissed
+  reviewedBy     String?
+  createdAt      DateTime @default(now())
+
+  reporter     User @relation("Reporter", fields: [reporterId], references: [id])
+  reportedUser User @relation("ReportedUser", fields: [reportedUserId], references: [id])
+}
+
+model Block {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id])
+  blocked User @relation("Blocked", fields: [blockedId], references: [id])
+
+  @@unique([blockerId, blockedId])
+}
+
+model PaymentIdempotency {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  action    String
+  bookingId String?
+  createdAt DateTime @default(now())
 }

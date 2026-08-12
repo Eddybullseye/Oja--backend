@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -6,6 +6,20 @@ export class BookingsService {
   constructor(private prisma: PrismaService) {}
 
   async create(buyerId: string, data: any) {
+    // Check for blocks
+    const block = await this.prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: buyerId, blockedId: data.workerId },
+          { blockerId: data.workerId, blockedId: buyerId }
+        ]
+      }
+    });
+
+    if (block) {
+      throw new BadRequestException('Cannot book this worker (Blocked)');
+    }
+
     return this.prisma.booking.create({
       data: {
         ...data,

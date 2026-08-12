@@ -29,7 +29,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const decoded = this.jwtService.verify(token);
       client.data.user = decoded;
       console.log(`Client connected: ${client.id} - User: ${decoded.sub}`);
-    } catch (e) {
+    } catch (_e) {
       client.disconnect();
     }
   }
@@ -45,6 +45,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const senderId = client.data.user.sub;
     
+    // Check for blocks
+    const block = await this.prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: senderId, blockedId: data.receiverId },
+          { blockerId: data.receiverId, blockedId: senderId }
+        ]
+      }
+    });
+
+    if (block) {
+      // Typically we'd emit an error event back to the sender
+      client.emit('error', 'Cannot send message to this user.');
+      return;
+    }
+
     // Save to DB
     const message = await this.prisma.message.create({
       data: {
